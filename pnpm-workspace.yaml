@@ -1,0 +1,6 @@
+packages:
+  - slides
+
+allowBuilds:
+  esbuild: true
+  workerd: true

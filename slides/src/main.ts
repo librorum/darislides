@@ -4,6 +4,8 @@
 // mutation — the captured copy is what gets re-serialized on save.
 
 import './styles.css'
+import { connectDarichat } from './darichat_bridge'
+import { registerDarislidesLocale } from './darislides_locale'
 import { anim } from './anim'
 import { configureApp, appConfig } from '../../kernel/src/app.ts'
 import { startTheme } from '../../kernel/src/theme.ts'
@@ -41,11 +43,18 @@ import { onlineTransport, startSharing, stopSharing, disconnectOnline, joinFromD
 
 // Tell the kernel who this app is — must precede any kernel module use
 // (window title suffix, save-picker label, update manifest + its `app` check).
+declare const __DARISLIDES_CONFIG__: {
+  manifest_url: string; sync_host: string;
+  public_key_jwk: { kty: 'EC'; crv: 'P-256'; x: string; y: string }
+}
 configureApp({
-  appId: 'bento-slides',
-  appName: 'bento/slides',
-  manifestUrl: 'https://bento.page/releases/slides/manifest.json',
+  appId: 'darislides',
+  appName: 'darislides',
+  manifestUrl: __DARISLIDES_CONFIG__.manifest_url,
+  syncHost: __DARISLIDES_CONFIG__.sync_host,
+  publicKeyJwk: __DARISLIDES_CONFIG__.public_key_jwk,
 })
+registerDarislidesLocale()
 
 // Every save writes a static rendering of page one into the shell, so file
 // managers thumbnail the deck instead of the boot splash (src/preview.ts).
@@ -459,6 +468,7 @@ dismissSplash()
   },
 }
 
+connectDarichat(store, session, (window as any).bento.loadDoc)
 } // editorMode
 
 /**

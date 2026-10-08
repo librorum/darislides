@@ -38,6 +38,7 @@ import { stepOf } from '../steps'
 import { availablePacks, fetchPack, markFileSaved, packCoverage, packsInFile, stageForFile, unstageFromFile } from '../packs'
 import { injectFonts } from '../fonts'
 import { appConfig } from '../../../kernel/src/app.ts'
+import { darichatHostOrigin } from '../darichat_bridge'
 import { disconnectOnline, joinFromDoc, mintCollab, mintInvite, mintRoomKey, onlineTransport, rotateKeys, sharingOn, startSharing, stopSharing } from '../sync/online'
 import { readerCopy, inviteCopy } from '../share'
 import { projectDoc, projectOp, type AudienceTicket } from '../audience'
@@ -330,7 +331,9 @@ export class Editor {
       `<rect x="14" y="5" width="13" height="10" rx="2.5" fill="#FF9E8A"/>` +
       `<rect x="14" y="17" width="13" height="10" rx="2.5" fill="#F0EBE0"/>` +
       `</svg> <b>bento<span style="color:#FF9E8A">/</span>slides</b>`
-    logo.title = t('About bento/slides — version, updates, licenses')
+    logo.querySelector('b')!.textContent = appConfig().appName
+    logo.title = appConfig().appName
+    logo.setAttribute('aria-label', appConfig().appName)
     logo.addEventListener('click', () => this.openAbout())
     const title = document.createElement('input')
     title.className = 'ed-title'
@@ -2618,6 +2621,8 @@ export class Editor {
   private lastBackupAt = 0
 
   private wireAutosave() {
+    // The host saves to private R2; avoid a second plaintext copy on a shared device.
+    if (darichatHostOrigin() != null) return
     if (this.store.doc.readonly) return // player file — nothing to autosave
     void pruneOld()
     void this.checkRecovery()

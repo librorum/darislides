@@ -1,3 +1,14 @@
+# darislides
+
+다리챗의 `@slides`와 연결하는 Bento 기반 발표자료 편집기입니다. 원본 MIT 고지와 Git 이력을 유지하며, 업데이트는 우리 R2 채널, 실시간 협업은 우리 Cloudflare relay를 사용합니다.
+
+- [개발 계획](docs/darislides_plan.md)
+- [실행·배포 절차](docs/darislides_operations.md)
+- 단독 실행: `pnpm install`, `pnpm dev`
+- 검증: `pnpm build:single`, `pnpm test`, `pnpm sync:check`
+
+아래는 원본 프로젝트 설명입니다.
+
 <p align="center">
   <a href="https://bento.page" title="bento.page — try it in your browser">
     <img src="docs/assets/bento-logo.svg" alt="Bento" width="96" height="96">

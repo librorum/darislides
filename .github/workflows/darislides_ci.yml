@@ -1,0 +1,24 @@
+name: darislides
+on:
+  push:
+    branches: [main, feat/darichat_integration]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: slides/package-lock.json
+      - run: npm ci
+        working-directory: slides
+      - run: npm run build:single
+        working-directory: slides
+      - run: node scripts/shell-gate.mjs slides/dist-single/Bento_Slides.bento.html
+      - run: node --test test/*.test.mjs
+      - run: node scripts/test-sync-session.ts

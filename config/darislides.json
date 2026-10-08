@@ -1,0 +1,11 @@
+{
+  "manifest_url": "https://slides.darichat.com/releases/slides/manifest.json",
+  "sync_host": "wss://sync.slides.darichat.com",
+  "parent_origins": [
+    "https://darichat.com",
+    "https://www.darichat.com",
+    "http://localhost:9000",
+    "http://localhost:9001",
+    "http://localhost:5173"
+  ]
+}

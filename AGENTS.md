@@ -1,3 +1,17 @@
+# darislides fork instructions
+
+This repository is librorum/darislides, a fork of nyblnet/bento used by darichat.
+User instructions for darichat take precedence over the upstream guide below.
+Keep the shared kernel, CRDT, document format and original license notices intact.
+Use darislides for our app name; retain bento/slides for the document format.
+New integration files/variables use snake_case; functions use camelCase. Await
+async calls. Commit messages are short Korean statements. Keep our own release
+keys and endpoints separate from Bento. Do not deploy unless requested.
+Our dependency workspace is separate from darichat; use pnpm in this directory.
+See docs/darislides_plan.md and docs/darislides_operations.md before changing
+our integration. Native local autosave stays available for standalone files;
+hosted documents use darichat server saving instead of a plaintext local cache.
+
 # Working in this repo — agents & tools
 
 Guidance for AI coding agents (Claude Code, Codex, Antigravity, …) and human

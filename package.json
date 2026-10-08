@@ -1,0 +1,17 @@
+{
+  "name": "darislides",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --dir slides dev --port 5174",
+    "build": "pnpm --dir slides build",
+    "build:single": "pnpm --dir slides build:single",
+    "sync:dev": "wrangler dev --config wrangler.jsonc --port 8892",
+    "sync:check": "wrangler deploy --config wrangler.jsonc --dry-run",
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "4.148.0"
+  }
+}

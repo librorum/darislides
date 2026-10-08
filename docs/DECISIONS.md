@@ -8461,3 +8461,19 @@ title, where slides puts its Slides button.
 
 A kernel line proposes `kernel/src/ui/topbar.ts`. When it lands, this file
 becomes an import and slides' `fitTopbar` its second caller.
+
+
+## 2026-10-08 — darislides fork and darichat integration
+
+Owner: librorum. Preserve upstream history, format and engine. Configure our
+publisher id, public signing key, R2 channel and relay via app config. Our
+workspace and lockfile remain independent of darichat so upstream dependencies
+do not alter the chat app's peer graph. The host embeds the saved document before
+boot and uses a narrowly checked postMessage bridge without passing login tokens.
+Document snapshots are private immutable R2 objects, with D1 revisions and CAS.
+The server creates one Bento v2 owner capability per document, never per browser.
+AI reads exclude capabilities and large assets. Existing file capabilities are
+not automatically revoked by darichat room membership changes. Hosted documents
+skip native plaintext IndexedDB autosave and use server history; standalone files
+keep native saving and recovery. Production provisioning and publishing are
+separate from development, and release builds require our own public key.

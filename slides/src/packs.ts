@@ -28,7 +28,7 @@ import { netFetch, sharedStorageOrigin } from '../../kernel/src/net.ts'
 import { PACKED } from './i18n/packed.ts'
 import { lsGet } from '../../kernel/src/storage.ts'
 
-const DEFAULT_CHANNEL = 'https://bento.page/releases/slides'
+const defaultChannel = (): string => appConfig().manifestUrl.replace(/\/[^/]+$/, '')
 
 /**
  * Where the release channel publishes the pack index and the packs.
@@ -40,7 +40,7 @@ const DEFAULT_CHANNEL = 'https://bento.page/releases/slides'
  * local document shares one.
  */
 const channel = (): string =>
-  (sharedStorageOrigin() ? null : lsGet('bento-packs-url')) ?? DEFAULT_CHANNEL
+  (sharedStorageOrigin() ? null : lsGet('bento-packs-url')) ?? defaultChannel()
 
 export interface PackListing {
   lang: string
