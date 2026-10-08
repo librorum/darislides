@@ -4,7 +4,7 @@
 // mutation — the captured copy is what gets re-serialized on save.
 
 import './styles.css'
-import { connectDarichat } from './darichat_bridge'
+import { connectDarichat, darichatHostOrigin } from './darichat_bridge'
 import { registerDarislidesLocale } from './darislides_locale'
 import { anim } from './anim'
 import { configureApp, appConfig } from '../../kernel/src/app.ts'
@@ -158,7 +158,9 @@ function bootWith(doc: BentoDoc, docIsFresh = false) {
   resolveThemeRefs(doc)
   if (doc.collab?.role === 'audience') audienceMode(doc)
   else if (doc.readonly) playerMode(doc)
-  else editorMode(doc, docIsFresh)
+  else if (document.documentElement.dataset.darislidesMode === 'edit'
+    || (!darichatHostOrigin() && location.hash === '#edit')) editorMode(doc, docIsFresh)
+  else playerMode(doc, true)
 }
 
 /**
@@ -232,7 +234,7 @@ function audienceMode(doc: BentoDoc) {
  * Read-only files are PLAYER files: they open straight into the show and
  * never expose the editor. Leaving the presentation lands on a minimal card.
  */
-function playerMode(doc: BentoDoc) {
+function playerMode(doc: BentoDoc, editable = false) {
   document.title = `${doc.title} — ${appConfig().appName}`
   if (doc.fonts?.length) injectFonts(doc)
   document.getElementById('bento-splash')?.remove()
@@ -244,6 +246,15 @@ function playerMode(doc: BentoDoc) {
     `<button class="ed-playgo">▶&nbsp; ${t('Present')}</button>` +
     `<button class="ed-playcopy">⤓&nbsp; ${t('Save a copy')}</button></div>`
   document.body.appendChild(card)
+  if (editable && !darichatHostOrigin()) {
+    const edit_button = document.createElement('button')
+    edit_button.textContent = t('Edit')
+    edit_button.addEventListener('click', () => {
+      location.hash = '#edit'
+      location.reload()
+    })
+    card.querySelector('.ed-playercard')!.appendChild(edit_button)
+  }
   const start = () => {
     card.style.display = 'none'
     startPresentation(doc, 0, () => {
@@ -256,6 +267,8 @@ function playerMode(doc: BentoDoc) {
   })
   ;(window as any).bento = { format: doc.format, doc, readonly: true }
   start()
+  const parent_origin = darichatHostOrigin()
+  if (parent_origin) window.parent.postMessage({ channel: 'darislides', type: 'ready' }, parent_origin)
 }
 
 function editorMode(doc: BentoDoc, docIsFresh = false) {
