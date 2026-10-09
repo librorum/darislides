@@ -24,7 +24,7 @@ pnpm dev
 
 1. 같은 Cloudflare 계정에 R2 Standard 버킷 `darislides-documents`(비공개), `darislides-blobs`(비공개), `darislides-releases`(공개 파일 배포용)를 만든다.
 2. 다리챗 D1에 migration 031을 적용한다.
-3. `darislides/wrangler.jsonc`의 계정·도메인을 확인하고 `darislides-sync` Worker를 배포한다. 도메인은 `sync.slides.darichat.com`이다. DO와 R2 relay 코드는 원본 그대로다.
+3. `darislides/wrangler.jsonc`의 계정·도메인을 확인하고 `darislides-sync` Worker를 배포한다. 도메인은 `sync-slides.darichat.com`이다. DO와 R2 relay 코드는 원본 그대로다.
 4. release 버킷에 `slides.darichat.com` 커스텀 도메인을 연결한다. 공개 읽기용 CORS는 GET·HEAD, origin `*`로 설정한다. 독립 파일에서도 manifest와 HTML을 읽을 수 있어야 한다.
 5. 우리 발행자의 P-256 서명 키를 저장소 밖에서 한 번 생성한다. 원본의 `~/.bento/release-key.json`은 사용하지 않는다. 개인키는 Git·CI에 넣지 않고 백업한다. 공개키만 `config/release_config.example.json`을 참고한 별도 설정 파일에 넣는다.
 6. `DARISLIDES_RELEASE_CONFIG`를 해당 설정 파일의 절대 경로로 지정하고, `DARISLIDES_RELEASE=1`로 release 빌드를 실행한다. 공개키 없는 release 빌드는 실패한다.
@@ -50,4 +50,6 @@ pnpm exec wrangler deploy --dry-run      # 다리챗 패키징 dry-run
 
 ## 운영 적용 이력
 
-2026-10-09: darislides 0.1.1, R2 버킷 3개, 공개 release 도메인·CORS, sync Worker 커스텀 도메인, D1 migration 031 적용. 발행자 공개키는 config/darislides.json에 고정한다. 개인키는 운영 머신의 ~/.config/darislides/release_key.json(권한 0600)에 보관하며 별도 보안 백업이 필요하다. 다음 배포에서도 같은 개인키를 사용한다.
+2026-10-09: darislides 0.1.2, R2 버킷 3개, 공개 release 도메인·CORS, sync Worker 커스텀 도메인, D1 migration 031 적용. 발행자 공개키는 config/darislides.json에 고정한다. 개인키는 운영 머신의 ~/.config/darislides/release_key.json(권한 0600)에 보관하며 별도 보안 백업이 필요하다. 다음 배포에서도 같은 개인키를 사용한다.
+
+중첩 sync.slides.darichat.com의 TLS 발급 지연으로 운영 협업 주소는 sync-slides.darichat.com을 사용한다. 0.1.1 업데이트 파일은 보존하며 0.1.2로 갱신한다.

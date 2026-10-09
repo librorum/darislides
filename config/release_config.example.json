@@ -1,6 +1,6 @@
 {
   "manifest_url": "https://slides.darichat.com/releases/slides/manifest.json",
-  "sync_host": "wss://sync.slides.darichat.com",
+  "sync_host": "wss://sync-slides.darichat.com",
   "public_key_jwk": {
     "kty": "EC",
     "crv": "P-256",
