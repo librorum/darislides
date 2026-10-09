@@ -7,5 +7,11 @@
     "http://localhost:9000",
     "http://localhost:9001",
     "http://localhost:5173"
-  ]
+  ],
+  "public_key_jwk": {
+    "kty": "EC",
+    "x": "KVRSXUVT--mhgbmQlFrmDT7SOBL7l68ekd1vtpiSNwc",
+    "y": "NV4RW17NLxzZRP4p4kbaDkpva_hLxKGWdoWaxuPrnGc",
+    "crv": "P-256"
+  }
 }

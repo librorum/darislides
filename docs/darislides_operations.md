@@ -47,3 +47,7 @@ pnpm exec wrangler deploy --dry-run      # 다리챗 패키징 dry-run
 ```
 
 로컬 브라우저 검증은 다리챗 루트에서 `node test/slides_browser_server.js`를 실행하고 `http://localhost:9000/__slides_test_login`을 연다. SQLite·R2 모의 저장소와 실제 Slides API를 사용하며 운영 로그인이나 데이터를 사용하지 않는다. 별도로 로컬 relay를 실행하면 서로 다른 브라우저 세션의 암호화 협업도 확인할 수 있다.
+
+## 운영 적용 이력
+
+2026-10-09: darislides 0.1.1, R2 버킷 3개, 공개 release 도메인·CORS, sync Worker 커스텀 도메인, D1 migration 031 적용. 발행자 공개키는 config/darislides.json에 고정한다. 개인키는 운영 머신의 ~/.config/darislides/release_key.json(권한 0600)에 보관하며 별도 보안 백업이 필요하다. 다음 배포에서도 같은 개인키를 사용한다.
