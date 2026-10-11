@@ -511,6 +511,11 @@ a.ed-btn { text-decoration: none; }  /* the update block's "What's new" link is 
 /* A web link inside text: underlined in the author's colour, a pointer only
    in the show (the editor treats it as text — canvas.ts swallows the click). */
 .bento-el a[href] { color: inherit; text-decoration: underline; text-underline-offset: 0.12em; }
+/* scroll text box (TextElement.scroll): thin scrollbar, wheel stays inside */
+.bento-el[data-scroll] { scrollbar-width: thin; scrollbar-color: rgba(0,0,0,.28) transparent; }
+.bento-el[data-scroll]::-webkit-scrollbar { width: 8px; }
+.bento-el[data-scroll]::-webkit-scrollbar-thumb { background: rgba(0,0,0,.28); border-radius: 4px; }
+.bento-present-overlay .bento-el[data-scroll] { cursor: auto; }
 .bento-present-overlay .bento-el a[href] { cursor: pointer; }
 
 /* Formulas are left on the browser's own `math` family ON PURPOSE — naming a

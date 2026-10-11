@@ -673,6 +673,8 @@ export const strings: Catalog = {
   "Add a point on the path; double-click a point to remove it": "경로에 점을 추가합니다. 점을 더블 클릭하면 제거됩니다",
   "Set how fast the element moves through that point": "요소가 그 지점을 지나는 속도를 설정합니다",
   "Scroll a point": "점에서 스크롤",
+  "Scroll box": "스크롤 상자",
+  "Text longer than the box scrolls inside it during the show instead of spilling over the slide": "발표 중 상자보다 긴 글을 슬라이드 밖으로 넘치지 않고 상자 안에서 스크롤합니다",
   "Backed up in this browser": "이 브라우저에 백업됨",
   "Unsaved changes — kept in this browser at {when} and offered back if you reopen. ⌘S downloads an updated copy.": "저장되지 않은 변경 사항 — {when}에 이 브라우저에 보관되었으며 다시 열면 복원할 수 있습니다. ⌘S는 업데이트된 사본을 내려받습니다.",
   "Unsaved changes — ⌘S downloads an updated copy (this browser can’t rewrite the file)": "저장되지 않은 변경 사항 — ⌘S는 업데이트된 사본을 내려받습니다(이 브라우저는 파일을 다시 쓸 수 없습니다)",

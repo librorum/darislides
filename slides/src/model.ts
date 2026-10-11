@@ -161,6 +161,14 @@ export interface TextElement extends ElementBase {
    *  the solid `color` fill and just adds an outline. */
   textStroke?: { width: number; color: string; fill?: string }
   /**
+   * Scrollable box (darislides): text longer than the frame scrolls inside it
+   * while presenting (wheel / trackpad / touch) instead of spilling over the
+   * slide. The editor canvas, thumbnails and print clip it to the frame. The
+   * box always lays out from the top so the first line is never cut off.
+   * Absent = the classic overflow-visible text box.
+   */
+  scroll?: boolean
+  /**
    * Layout placeholder prompt ("Click to add title"). While the element's
    * html is empty: the editor shows this dimmed; present and print hide the
    * element entirely. Cleared content brings the prompt back.

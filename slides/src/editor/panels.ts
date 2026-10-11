@@ -79,6 +79,7 @@ const ROW_TIPS: Record<string, string> = {
   'Align': 'Horizontal text alignment',
   'V-align': 'Vertical alignment inside the box',
   'Line height': 'Line spacing as a multiple of the font size',
+  'Scroll box': 'Text longer than the box scrolls inside it during the show instead of spilling over the slide',
   'Fill style': 'Solid colour or a linear gradient',
   'Fill': 'Fill colour with opacity — for lines this IS the line colour',
   'Grad. angle': 'Gradient direction in degrees (CSS convention: 0° points up)',
@@ -1169,6 +1170,13 @@ export class PropsPanel {
       this.mutate(el.id, (e) => { (e as TextElement).valign = v as TextElement['valign'] }, true)))
     this.row('Line height', this.number(el.lineHeight, 0.05, (v, fin) =>
       this.mutate(el.id, (e) => { (e as TextElement).lineHeight = Math.max(v, 0.5) }, fin)))
+    // Long text scrolls inside the frame while presenting; absent = off
+    this.row('Scroll box', this.toggle(el.scroll === true, (on) =>
+      this.mutate(el.id, (e) => {
+        if (e.type !== 'text') return
+        if (on) e.scroll = true
+        else delete e.scroll
+      }, true)))
 
     // Outline / hollow glyphs via -webkit-text-stroke. Width 0 = off; 'hollow'
     // makes the glyph interior transparent (the classic outlined section word).

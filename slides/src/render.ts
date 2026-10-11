@@ -1048,6 +1048,15 @@ export function renderElement(el: SlideElement, doc: BentoDoc, opts: RenderOpts 
       node.style.display = 'flex'
       node.style.flexDirection = 'column'
       node.style.justifyContent = VALIGN[el.valign]
+      if (el.scroll === true) {
+        // scroll box: from the top (a centred overflow would cut its head off),
+        // scrollable only on a live surface — clipped on the canvas and in print
+        node.dataset.scroll = '1'
+        node.style.justifyContent = 'flex-start'
+        node.style.overflowX = 'hidden'
+        node.style.overflowY = opts.liveMedia ? 'auto' : 'hidden'
+        if (opts.liveMedia) node.style.overscrollBehavior = 'contain'
+      }
       const inner = document.createElement('div')
       inner.className = 'bento-text-inner'
       // Base direction from the text itself. Without it every box is LTR, and

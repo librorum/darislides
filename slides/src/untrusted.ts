@@ -467,6 +467,7 @@ export const ELEMENT_CHECKS: Record<string, Check> = {
   lineHeight: num(0, 100), letterSpacing: num(-1000, 1000),
   color: color(), colorGradient: gradient,
   align: oneOf('left', 'center', 'right'), valign: oneOf('top', 'middle', 'bottom'),
+  scroll: bool,
   textStroke: shape(['width', 'color', 'fill'], {
     width: num(0, 1e3), color: color(), fill: color(),
   }, ['width', 'color']),

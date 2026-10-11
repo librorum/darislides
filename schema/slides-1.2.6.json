@@ -378,6 +378,9 @@
           "minimum": -3600,
           "maximum": 3600
         },
+        "scroll": {
+          "type": "boolean"
+        },
         "shadow": {
           "$ref": "#/$defs/prop-shadow"
         },
