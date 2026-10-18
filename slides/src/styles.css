@@ -935,6 +935,13 @@ a.ed-btn { text-decoration: none; }  /* the update block's "What's new" link is 
 .bento-present-overlay .reveal .slides section { padding: 0; }
 /* darichat's viewer toolbar shows the page, so Reveal's number would repeat it */
 html[data-darislides-mode='view'] .bento-present-overlay .reveal .slide-number { display: none; }
+/* darichat AI edit: the element a click would pick */
+.darislides-picking .bento-present-overlay .bento-el { cursor: crosshair; }
+.darislides-pick {
+  outline: 3px solid #2563eb !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px rgb(255 255 255 / 0.85) !important;
+}
 /* Presenter laser: viewport-level so its screen-space size stays constant at
    every Reveal scale. The visual layer stays pointer-transparent so slide
    links, hover effects, charts and media remain interactive while it is armed. */

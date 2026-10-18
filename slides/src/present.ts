@@ -79,8 +79,8 @@ export function startPresentation(
       buildSection: (s: BentoDoc['slides'][number], i: number) => HTMLElement
     }) => void
     broadcast?: PresentBroadcast
-    /** 1-based visible page and total, on start and every slide change */
-    onSlide?: (page: number, total: number) => void
+    /** 1-based visible page, total and slide index, on start and every slide change */
+    onSlide?: (page: number, total: number, index: number) => void
   } = {},
 ): PresentSession {
   MORPH_DURATION = Math.min(6, Math.max(0.1, doc.present?.morphSeconds ?? MORPH_DURATION_DEFAULT))
@@ -1305,7 +1305,7 @@ export function startPresentation(
     if (!to) return
     const fromIdx = from ? [...slidesEl.children].indexOf(from) : -1
     const toIdx = [...slidesEl.children].indexOf(to)
-    opts.onSlide?.(visibleIndex(toIdx), visibleTotal)
+    opts.onSlide?.(visibleIndex(toIdx), visibleTotal, toIdx)
     if (from) {
       // Kill the outgoing slide's tweens, then restore model frames —
       // a tween killed during its delay would otherwise leave the element
@@ -1512,7 +1512,7 @@ export function startPresentation(
   deck.initialize().then(() => {
     deckReady = true
     if (startIndex > 0) deck.slide(startIndex, 0)
-    opts.onSlide?.(visibleIndex(startIndex), visibleTotal)
+    opts.onSlide?.(visibleIndex(startIndex), visibleTotal, startIndex)
     if (pendingIndex !== null) {
       deck.slide(pendingIndex, 0)
       pendingIndex = null

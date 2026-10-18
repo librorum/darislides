@@ -38,6 +38,7 @@ import { injectFonts } from './fonts'
 import { Store } from './store'
 import { Editor } from './editor/editor'
 import { startPresentation, type PresentSession } from './present'
+import { armPicker } from './darichat_pick'
 import { SyncSession } from './sync/session'
 import { onlineTransport, startSharing, stopSharing, disconnectOnline, joinFromDoc } from './sync/online'
 
@@ -266,7 +267,7 @@ function playerMode(doc: BentoDoc, editable = false) {
     show = startPresentation(doc, 0, () => {
       show = null
       card.style.display = ''
-    }, { onSlide: (page, total) => sendHost({ type: 'page', page, total }) })
+    }, { onSlide: (page, total, index) => sendHost({ type: 'page', page, total, slide_id: doc.slides[index]?.id }) })
   }
   card.querySelector('.ed-playgo')!.addEventListener('click', start)
   card.querySelector('.ed-playcopy')!.addEventListener('click', () => {
@@ -275,11 +276,19 @@ function playerMode(doc: BentoDoc, editable = false) {
   ;(window as any).bento = { format: doc.format, doc, readonly: true }
   start()
   if (!parent_origin) return
+  const setPick = armPicker(doc, sendHost)
   window.addEventListener('message', (event: MessageEvent) => {
     if (event.source !== window.parent || event.origin !== parent_origin
       || event.data?.channel !== 'darislides') return
     const { type } = event.data
-    if (type !== 'next' && type !== 'prev') return
+    if (type === 'pick_mode') return setPick(event.data.on === true)
+    if (type !== 'next' && type !== 'prev' && type !== 'goto') return
+    if (type === 'goto') {
+      const index = doc.slides.findIndex((slide) => slide.id === event.data.slide_id)
+      if (!show) start()
+      if (index >= 0) show!.goTo(index)
+      return
+    }
     if (!show) return start()
     if (type === 'next') show.next()
     else show.prev()
