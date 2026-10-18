@@ -1299,6 +1299,31 @@ export function startPresentation(
     }
   }, { passive: true })
 
+  // ——— wheel: one notch or trackpad swipe walks one slide, the same
+  // threshold + cooldown as the editor canvas. A text box that can still
+  // scroll that way keeps the wheel; ctrl/pinch stays the browser's zoom. ———
+  let wheelAccum = 0
+  let wheelCooldown = 0
+  const canScroll = (target: EventTarget | null, dy: number) => {
+    for (let el = target as HTMLElement | null; el && el !== overlay; el = el.parentElement) {
+      if (!/(auto|scroll)/.test(getComputedStyle(el).overflowY) || el.scrollHeight <= el.clientHeight) continue
+      if (dy > 0 ? el.scrollTop + el.clientHeight < el.scrollHeight : el.scrollTop > 0) return true
+    }
+    return false
+  }
+  overlay.addEventListener('wheel', (ev) => {
+    if (ev.ctrlKey || deck.isOverview() || canScroll(ev.target, ev.deltaY)) return
+    ev.preventDefault()
+    const now = performance.now()
+    if (now < wheelCooldown) return
+    wheelAccum += ev.deltaY
+    if (Math.abs(wheelAccum) < 40) return
+    if (wheelAccum > 0) goNext()
+    else goPrev()
+    wheelAccum = 0
+    wheelCooldown = now + 400
+  }, { passive: false })
+
   deck.on('slidechanged', ((event: any) => {
     const from = event.previousSlide as HTMLElement | undefined
     const to = event.currentSlide as HTMLElement
