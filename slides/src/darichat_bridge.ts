@@ -8,7 +8,8 @@ declare const __DARISLIDES_CONFIG__: { parent_origins: string[] }
 export function darichatHostOrigin(): string | null {
   if (window.parent === window) return null
   try {
-    const parent_origin = new URL(document.referrer || location.href).origin
+    // https 부모의 srcdoc 은 referrer 가 비므로 물려받은 window.origin 을 쓴다
+    const parent_origin = new URL(document.referrer || window.origin).origin
     return __DARISLIDES_CONFIG__.parent_origins.includes(parent_origin) ? parent_origin : null
   } catch { return null }
 }
