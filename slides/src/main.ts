@@ -37,7 +37,7 @@ import { starterDoc } from './starterdeck'
 import { injectFonts } from './fonts'
 import { Store } from './store'
 import { Editor } from './editor/editor'
-import { startPresentation } from './present'
+import { startPresentation, type PresentSession } from './present'
 import { SyncSession } from './sync/session'
 import { onlineTransport, startSharing, stopSharing, disconnectOnline, joinFromDoc } from './sync/online'
 
@@ -255,11 +255,18 @@ function playerMode(doc: BentoDoc, editable = false) {
     })
     card.querySelector('.ed-playercard')!.appendChild(edit_button)
   }
+  // darichat hosts the viewer toolbar: it steps the show and shows the page
+  const parent_origin = darichatHostOrigin()
+  const sendHost = (data: Record<string, unknown>) => {
+    if (parent_origin) window.parent.postMessage({ channel: 'darislides', ...data }, parent_origin)
+  }
+  let show: PresentSession | null = null
   const start = () => {
     card.style.display = 'none'
-    startPresentation(doc, 0, () => {
+    show = startPresentation(doc, 0, () => {
+      show = null
       card.style.display = ''
-    })
+    }, { onSlide: (page, total) => sendHost({ type: 'page', page, total }) })
   }
   card.querySelector('.ed-playgo')!.addEventListener('click', start)
   card.querySelector('.ed-playcopy')!.addEventListener('click', () => {
@@ -267,8 +274,17 @@ function playerMode(doc: BentoDoc, editable = false) {
   })
   ;(window as any).bento = { format: doc.format, doc, readonly: true }
   start()
-  const parent_origin = darichatHostOrigin()
-  if (parent_origin) window.parent.postMessage({ channel: 'darislides', type: 'ready' }, parent_origin)
+  if (!parent_origin) return
+  window.addEventListener('message', (event: MessageEvent) => {
+    if (event.source !== window.parent || event.origin !== parent_origin
+      || event.data?.channel !== 'darislides') return
+    const { type } = event.data
+    if (type !== 'next' && type !== 'prev') return
+    if (!show) return start()
+    if (type === 'next') show.next()
+    else show.prev()
+  })
+  sendHost({ type: 'ready' })
 }
 
 function editorMode(doc: BentoDoc, docIsFresh = false) {

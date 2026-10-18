@@ -933,6 +933,8 @@ a.ed-btn { text-decoration: none; }  /* the update block's "What's new" link is 
   --r-overlay-element-fg-color: 0, 0, 0;
 }
 .bento-present-overlay .reveal .slides section { padding: 0; }
+/* darichat's viewer toolbar shows the page, so Reveal's number would repeat it */
+html[data-darislides-mode='view'] .bento-present-overlay .reveal .slide-number { display: none; }
 /* Presenter laser: viewport-level so its screen-space size stays constant at
    every Reveal scale. The visual layer stays pointer-transparent so slide
    links, hover effects, charts and media remain interactive while it is armed. */

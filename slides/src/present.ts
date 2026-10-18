@@ -30,6 +30,9 @@ export interface PresentSession {
   exit(): void
   /** Absolute slide navigation: jump the show to a 0-based slide index. */
   goTo(index: number): void
+  /** Step forward/back exactly as the arrow keys do (host toolbar buttons). */
+  next(): void
+  prev(): void
   /** Show or hide the audience blackout (audience copy side). */
   setBlack(on: boolean): void
   /** Position the remote laser dot from the presenter (null = hide). */
@@ -76,6 +79,8 @@ export function startPresentation(
       buildSection: (s: BentoDoc['slides'][number], i: number) => HTMLElement
     }) => void
     broadcast?: PresentBroadcast
+    /** 1-based visible page and total, on start and every slide change */
+    onSlide?: (page: number, total: number) => void
   } = {},
 ): PresentSession {
   MORPH_DURATION = Math.min(6, Math.max(0.1, doc.present?.morphSeconds ?? MORPH_DURATION_DEFAULT))
@@ -1258,12 +1263,12 @@ export function startPresentation(
       toggleBlack()
       return
     }
-    const key = ev.key || ({ 32: ' ', 37: 'ArrowLeft', 39: 'ArrowRight', 33: 'PageUp', 34: 'PageDown' } as Record<number, string>)[ev.keyCode]
-    if (key === 'ArrowRight' || key === 'PageDown' || key === ' ') {
+    const key = ev.key || ({ 32: ' ', 37: 'ArrowLeft', 38: 'ArrowUp', 39: 'ArrowRight', 40: 'ArrowDown', 33: 'PageUp', 34: 'PageDown' } as Record<number, string>)[ev.keyCode]
+    if (key === 'ArrowRight' || key === 'ArrowDown' || key === 'PageDown' || key === ' ') {
       ev.preventDefault()
       ev.stopPropagation()
       goNext()
-    } else if (key === 'ArrowLeft' || key === 'PageUp') {
+    } else if (key === 'ArrowLeft' || key === 'ArrowUp' || key === 'PageUp') {
       ev.preventDefault()
       ev.stopPropagation()
       goPrev()
@@ -1300,6 +1305,7 @@ export function startPresentation(
     if (!to) return
     const fromIdx = from ? [...slidesEl.children].indexOf(from) : -1
     const toIdx = [...slidesEl.children].indexOf(to)
+    opts.onSlide?.(visibleIndex(toIdx), visibleTotal)
     if (from) {
       // Kill the outgoing slide's tweens, then restore model frames —
       // a tween killed during its delay would otherwise leave the element
@@ -1506,6 +1512,7 @@ export function startPresentation(
   deck.initialize().then(() => {
     deckReady = true
     if (startIndex > 0) deck.slide(startIndex, 0)
+    opts.onSlide?.(visibleIndex(startIndex), visibleTotal)
     if (pendingIndex !== null) {
       deck.slide(pendingIndex, 0)
       pendingIndex = null
@@ -1538,7 +1545,7 @@ export function startPresentation(
     }
   })
 
-  return { exit, goTo, setBlack, setRemoteLaser }
+  return { exit, goTo, next: goNext, prev: goPrev, setBlack, setRemoteLaser }
 }
 
 // --- media playback -----------------------------------------------------------
