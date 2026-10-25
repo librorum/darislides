@@ -8477,3 +8477,24 @@ not automatically revoked by darichat room membership changes. Hosted documents
 skip native plaintext IndexedDB autosave and use server history; standalone files
 keep native saving and recovery. Production provisioning and publishing are
 separate from development, and release builds require our own public key.
+
+## 2026-10-25 — Template import carries master/layout chrome, behind an option
+
+darichat imports an organisation's PowerPoint template as a bento document
+whose slides become `doc.layouts`. A template's identity lives almost
+entirely in its masters and layouts (background pictures, logos, bars), which
+the PRUNE rule deliberately never imports, so a plain conversion of a
+template is white slides with white text.
+
+`convertPptx(bytes, { chrome: true })` therefore also emits, per slide and
+under the slide's own shapes: a picture background (first `p:bg` up the
+slide → layout → master chain, resolved through THAT part's rels) as a
+full-bleed image `s<n>-bg`, then the master's and the layout's
+non-placeholder shapes through the same `emit` walk (master skipped when the
+slide or layout says `showMasterSp="0"`, both skipped when the slide does),
+with ids retagged `s<n>-m<id>` / `s<n>-l<id>` so they never collide with the
+slide's own cNvPr ids. Title/subtitle/body placeholders get `role`, so
+`applyLayout` can move content between them. A carried picture background is
+no longer reported dropped. Without the option the output is byte-identical
+to before — an ordinary deck import keeps PRUNE. Guarded by the `chrome`
+block of `scripts/test-convert/pptx.ts`.

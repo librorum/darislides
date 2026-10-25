@@ -34,7 +34,7 @@ import { convertPptx } from '../../convert/src/pptx.ts'
 import type { ConvertResult } from '../../convert/src/types.ts'
 import type { OutShape, OutText, OutImage } from '../../convert/src/types.ts'
 import {
-  fxMinimal, fxThemed, fxPlaceholder, fxGroup, fxBullets, fxSvg, fxConnectors, fxStructure,
+  fxMinimal, fxThemed, fxPlaceholder, fxGroup, fxBullets, fxSvg, fxConnectors, fxStructure, fxChrome,
   SVG_BYTES,
 } from './_fixtures.ts'
 
@@ -242,6 +242,38 @@ const byId = (r: ConvertResult, slide: number, id: string) =>
   ok(!s2.some((e) => e.id === 's2-20'),
     'structure: NEGATIVE — the mc:Choice content (which a blind walk double-imports) is absent')
   reportIs(r, ['table-not-yet', 'chart-not-yet'], 'structure')
+}
+
+// -------------------------------------------------------------------- chrome
+{
+  const plain = await convertPptx(await fxChrome())
+  ok(!plain.doc.slides.some((s) => s.elements.some((e) => e.id.endsWith('-bg') || e.id.includes('-m'))),
+    'chrome off: NEGATIVE — no master chrome or background picture is imported')
+  ok(plain.report.entries.some((e) => e.code === 'background-image-dropped'),
+    'chrome off: the picture background is still reported dropped')
+  ok(plain.doc.slides[0].elements.every((e) => e.role === undefined), 'chrome off: no role tags')
+
+  const r = await convertPptx(await fxChrome(), { chrome: true })
+  const s1 = r.doc.slides[0].elements
+  const bg = s1[0] as OutImage
+  ok(bg.id === 's1-bg' && bg.type === 'image' && bg.src.startsWith('asset:') &&
+    bg.x === 0 && bg.y === 0 && bg.w === 1280 && bg.h === 720,
+    'chrome: the master picture background is a full-bleed image painted first')
+  ok(r.doc.assets[bg.src.slice('asset:'.length)]?.startsWith('data:image/png;base64,') === true,
+    'chrome: the background bytes resolve through the MASTER’s rels')
+  const bar = byId(r, 0, 's1-m30') as OutShape | undefined
+  ok(bar !== undefined && bar.fill === '#4472C4' && bar.x === 0 && bar.y === 0 && bar.w === 1280 && bar.h === 48,
+    'chrome: the master’s decorative bar is carried with a master-tagged id')
+  ok(s1.indexOf(bar!) < s1.findIndex((e) => e.id === 's1-5'), 'chrome: master chrome paints under the slide’s own shapes')
+  ok(!s1.some((e) => e.id === 's1-m31' || (e as OutText).html?.includes('Click to edit')),
+    'chrome: NEGATIVE — the master’s title placeholder is not carried')
+  ok((byId(r, 0, 's1-5') as OutText | undefined)?.role === 'title', 'chrome: the title placeholder is tagged role title')
+  const s2 = r.doc.slides[1].elements
+  ok(s2[0]?.id === 's2-bg', 'chrome: showMasterSp="0" keeps the background picture')
+  ok(!s2.some((e) => e.id === 's2-m30') && byId(r, 1, 's2-30') !== undefined,
+    'chrome: showMasterSp="0" hides master shapes; the slide’s own id-30 shape survives')
+  ok(!r.report.entries.some((e) => e.code === 'background-image-dropped'),
+    'chrome: a carried picture background is not reported dropped')
 }
 
 console.log(`\n${checks - failures}/${checks} checks passed`)

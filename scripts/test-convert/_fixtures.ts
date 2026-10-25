@@ -119,6 +119,8 @@ export interface FixtureSpec {
   chain?: boolean
   theme?: string
   master?: string
+  /** extra Relationship entries appended verbatim to the master's .rels */
+  masterRels?: string
   layout?: string
   /** docProps/core.xml content */
   core?: string
@@ -170,7 +172,7 @@ export async function buildPptx(spec: FixtureSpec): Promise<Uint8Array> {
     ))
     put('ppt/slideMasters/slideMaster1.xml', spec.master ?? DEFAULT_MASTER())
     put('ppt/slideMasters/_rels/slideMaster1.xml.rels', relsXml(
-      `<Relationship Id="rId1" Type="${REL}/theme" Target="../theme/theme1.xml"/>`,
+      `<Relationship Id="rId1" Type="${REL}/theme" Target="../theme/theme1.xml"/>` + (spec.masterRels ?? ''),
     ))
     put('ppt/theme/theme1.xml', spec.theme ?? DEFAULT_THEME)
   }
@@ -391,6 +393,42 @@ export function fxStructure(): Promise<Uint8Array> {
 }
 
 /** Every fixture, for the loadability gate. */
+/** 9 · chrome (ConvertOptions.chrome): the master carries a PICTURE
+ *  background and a decorative accent bar (id 30, off 0,0 ext 12192000×457200
+ *  → 0, 0, 1280, 48 px) beside a title placeholder that must stay behind.
+ *  Slide 1 is a bare title; slide 2 sets showMasterSp="0" and has its OWN
+ *  id-30 shape — the bar must vanish there while the background stays.
+ *  Expected report without chrome: background-image-dropped among others. */
+export function fxChrome(): Promise<Uint8Array> {
+  const master =
+    `<p:sldMaster ${XMLNS}><p:cSld>` +
+    '<p:bg><p:bgPr><a:blipFill><a:blip r:embed="rIdBg"/><a:stretch><a:fillRect/></a:stretch></a:blipFill>' +
+    '<a:effectLst/></p:bgPr></p:bg><p:spTree>' +
+    sp(30, 'Accent Bar',
+      `<p:spPr>${xfrm(0, 0, 12192000, 457200)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>` +
+      '<a:solidFill><a:schemeClr val="accent1"/></a:solidFill></p:spPr>') +
+    '<p:sp><p:nvSpPr><p:cNvPr id="31" name="Title Placeholder"/><p:cNvSpPr/>' +
+    '<p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>' +
+    `<p:spPr>${xfrm(914400, 457200, 1828800, 914400)}</p:spPr>` +
+    '<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Click to edit title</a:t></a:r></a:p></p:txBody></p:sp>' +
+    `</p:spTree></p:cSld>${STANDARD_CLRMAP}` +
+    '<p:txStyles><p:titleStyle><a:lvl1pPr><a:defRPr sz="4400"/></a:lvl1pPr></p:titleStyle>' +
+    '<p:bodyStyle/><p:otherStyle/></p:txStyles></p:sldMaster>'
+  const title =
+    '<p:sp><p:nvSpPr><p:cNvPr id="5" name="Title 1"/><p:cNvSpPr/>' +
+    '<p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr/>' +
+    '<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Cover</a:t></a:r></a:p></p:txBody></p:sp>'
+  const own = sp(30, 'Own Box',
+    `<p:spPr>${xfrm(914400, 914400, 914400, 914400)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>` +
+    '<a:solidFill><a:srgbClr val="00FF00"/></a:solidFill></p:spPr>')
+  return buildPptx({
+    master,
+    masterRels: `<Relationship Id="rIdBg" Type="${REL}/image" Target="../media/bg.png"/>`,
+    media: { 'ppt/media/bg.png': PNG_BYTES },
+    slides: [{ xml: slide(title) }, { xml: slide(own, 'showMasterSp="0"') }],
+  })
+}
+
 export function allFixtures(): Array<{ name: string; build: () => Promise<Uint8Array> }> {
   return [
     { name: 'minimal', build: fxMinimal },

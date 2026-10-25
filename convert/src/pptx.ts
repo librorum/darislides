@@ -47,7 +47,7 @@ import { textFrom, type TextDeps } from './text.ts'
 import { shapeFrom, groupChildren, type ShapeDeps, type GroupFrame } from './shapes.ts'
 import {
   EMU_PER_PX, METRIC_SUBSTITUTES, safeFace, cssFace,
-  type ConvertResult, type OutDoc, type OutSlide, type OutElement, type OutShape,
+  type ConvertResult, type OutDoc, type OutSlide, type OutElement, type OutShape, type OutImage,
   type InheritCtx, type ThemeCtx,
 } from './types.ts'
 
@@ -153,7 +153,7 @@ function lowestStop(grad: XElem, theme: ThemeCtx, phClr: string | undefined): st
  * first stop with a report, and a picture background is dropped loudly.
  * Default white — the one colour a missing background actually paints.
  */
-function backgroundOf(ctx: InheritCtx, n: number): string {
+function backgroundOf(ctx: InheritCtx, n: number, pictureCarried = false): string {
   const report = ctx.report
   const where = `slide ${n}`
   const levels: Array<{ root: XElem | undefined; from: 'own' | 'layout' | 'master' }> = [
@@ -192,6 +192,11 @@ function backgroundOf(ctx: InheritCtx, n: number): string {
           'gradient background had no resolvable stop — painted white')
         return '#FFFFFF'
       }
+      if (fill.local === 'blipFill' && pictureCarried) {
+        // carried as a full-bleed image element (ConvertOptions.chrome)
+        report.trace('background', from)
+        return '#FFFFFF'
+      }
       report.add('dropped', 'background-image-dropped', where,
         `a:${fill.local} slide background has no bento counterpart — painted white`)
       return '#FFFFFF'
@@ -226,6 +231,48 @@ function backgroundOf(ctx: InheritCtx, n: number): string {
   report.trace('background', 'default')
   return '#FFFFFF'
 }
+
+/**
+ * ConvertOptions.chrome: a picture background (p:bg a:blipFill), walked
+ * slide → layout → master with the same first-p:bg-wins rule as backgroundOf,
+ * as a full-bleed image under everything else. Its blip resolves through the
+ * rels of the part that declares it.
+ */
+function backgroundPictureOf(
+  levels: Array<{ root: XElem | undefined; rels: Map<string, Rel> }>,
+  assets: AssetStore,
+  size: { width: number; height: number },
+  n: number,
+): OutImage | undefined {
+  for (const { root, rels } of levels) {
+    const cSld = root && kid(root, NS.p, 'cSld')
+    const bg = cSld && kid(cSld, NS.p, 'bg')
+    if (!bg) continue
+    const bgPr = kid(bg, NS.p, 'bgPr')
+    const fill = bgPr && kid(bgPr, NS.a, 'blipFill')
+    const blip = fill && kid(fill, NS.a, 'blip')
+    const relId = blip && attr(blip, 'embed')
+    const rel = relId ? rels.get(relId) : undefined
+    const key = rel && !rel.mode ? assets.register(rel.target) : undefined
+    if (!key) return undefined
+    return {
+      id: `s${n}-bg`, type: 'image', src: `asset:${key}`, fit: 'fill',
+      x: 0, y: 0, w: size.width, h: size.height, rotation: 0, opacity: 1,
+    }
+  }
+  return undefined
+}
+
+/** Whether a shape is a placeholder (p:ph in whichever nv*Pr it carries). */
+function isPlaceholder(el: XElem): boolean {
+  for (const c of kids(el)) {
+    const nv = kid(c, NS.p, 'nvPr')
+    if (nv) return kid(nv, NS.p, 'ph') !== undefined
+  }
+  return false
+}
+
+const PH_ROLES: Record<string, string> = { title: 'title', ctrTitle: 'title', subTitle: 'subtitle', body: 'body' }
 
 // --- notes -------------------------------------------------------------------
 
@@ -291,12 +338,25 @@ interface MasterBundle { theme: ThemeCtx; themeXml?: XElem }
 
 // --- the conversion ----------------------------------------------------------
 
+export interface ConvertOptions {
+  /**
+   * Template import: also carry each slide's inherited CHROME — the master's
+   * and layout's non-placeholder shapes and pictures (honouring showMasterSp)
+   * and a picture background as a full-bleed image — painted under the
+   * slide's own shapes, and tag title/subtitle/body placeholders with `role`.
+   * Off by default: an ordinary deck import keeps the PRUNE rule (header).
+   * Chrome ids are `s<n>-m<id>` (master) and `s<n>-l<id>` (layout), the
+   * background `s<n>-bg`.
+   */
+  chrome?: boolean
+}
+
 /**
  * Convert one .pptx to a bento/slides document. Throws (ZipError / XmlError /
  * Error) only for a package that is not a presentation at all; everything
  * recoverable lands in the report instead.
  */
-export async function convertPptx(bytes: Uint8Array): Promise<ConvertResult> {
+export async function convertPptx(bytes: Uint8Array, opts: ConvertOptions = {}): Promise<ConvertResult> {
   const report = new Report()
   const parts = await readZip(bytes)
   const ctRoot = xmlOf(parts, '[Content_Types].xml')
@@ -383,6 +443,8 @@ export async function convertPptx(bytes: Uint8Array): Promise<ConvertResult> {
     const cSldEl = kid(slideXml, NS.p, 'cSld')
     const spTree = cSldEl && kid(cSldEl, NS.p, 'spTree')
     const elements: OutElement[] = []
+    // the rels images resolve through — the slide's, or a chrome part's
+    let partRels = slideRels
 
     // every cNvPr id on the slide — connector refs outside this set are dangling
     const spIds = new Set<string>()
@@ -445,6 +507,10 @@ export async function convertPptx(bytes: Uint8Array): Promise<ConvertResult> {
             text.id = `s${n}-${spId}`
             if (groupId) text.groupId = groupId
           }
+          if (opts.chrome) {
+            const role = PH_ROLES[effectivePhType(el, ctx)]
+            if (role) text.role = role
+          }
           elements.push(text)
           if (refitPending) {
             report.add('approximated', 'text-needs-refit', `slide ${n}`,
@@ -456,7 +522,7 @@ export async function convertPptx(bytes: Uint8Array): Promise<ConvertResult> {
 
       if (local === 'pic') {
         const where = whereOf(el, n)
-        const img = imageFrom(el, ctx, slideRels, assets, where)
+        const img = imageFrom(el, ctx, partRels, assets, where)
         if (!img) return
         img.id = `s${n}-${cNvPrIdOf(el)}`
         if (frame) {
@@ -515,6 +581,43 @@ export async function convertPptx(bytes: Uint8Array): Promise<ConvertResult> {
         elements.push(box)
       }
     }
+    let bgPicture: OutImage | undefined
+    if (opts.chrome) {
+      const masterRels = masterRel && masterXml ? relsOf(parts, masterRel.target) : new Map<string, Rel>()
+      bgPicture = backgroundPictureOf([
+        { root: slideXml, rels: slideRels },
+        { root: layoutXml, rels: layoutRels },
+        { root: masterXml, rels: masterRels },
+      ], assets, size, n)
+      if (bgPicture) elements.push(bgPicture)
+      const chrome: Array<{ root: XElem; rels: Map<string, Rel>; tag: string }> = []
+      if (attr(slideXml, 'showMasterSp') !== '0') {
+        if (masterXml && (!layoutXml || attr(layoutXml, 'showMasterSp') !== '0')) {
+          chrome.push({ root: masterXml, rels: masterRels, tag: 'm' })
+        }
+        if (layoutXml) chrome.push({ root: layoutXml, rels: layoutRels, tag: 'l' })
+      }
+      const prefix = `s${n}-`
+      const retag = (v: string, tag: string): string => (v.startsWith(prefix) ? prefix + tag + v.slice(prefix.length) : v)
+      for (const { root, rels, tag } of chrome) {
+        const cSld = kid(root, NS.p, 'cSld')
+        const tree = cSld && kid(cSld, NS.p, 'spTree')
+        if (!tree) continue
+        const start = elements.length
+        partRels = rels
+        for (const el of flattenMc(tree.children)) if (!isPlaceholder(el)) emit(el)
+        partRels = slideRels
+        // chrome ids must not collide with the slide's own cNvPr ids
+        for (const e of elements.slice(start)) {
+          e.id = retag(e.id, tag)
+          if (e.groupId) e.groupId = retag(e.groupId, tag)
+          if (e.type === 'shape') {
+            if (e.from) e.from.el = retag(e.from.el, tag)
+            if (e.to) e.to.el = retag(e.to.el, tag)
+          }
+        }
+      }
+    }
     if (spTree) for (const el of flattenMc(spTree.children)) emit(el)
 
     // ---- notes
@@ -529,7 +632,7 @@ export async function convertPptx(bytes: Uint8Array): Promise<ConvertResult> {
     const slide: OutSlide = {
       id: `s${n}`,
       name: (cSldEl && attr(cSldEl, 'name')) || `Slide ${n}`,
-      background: backgroundOf(ctx, n),
+      background: backgroundOf(ctx, n, bgPicture !== undefined),
       transition: 'none',
       notes,
       elements,
