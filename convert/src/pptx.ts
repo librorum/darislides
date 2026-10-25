@@ -45,6 +45,8 @@ import {
 } from './media.ts'
 import { textFrom, type TextDeps } from './text.ts'
 import { shapeFrom, groupChildren, type ShapeDeps, type GroupFrame } from './shapes.ts'
+import { tableFrom } from './table.ts'
+import { chartFrom } from './chart.ts'
 import {
   EMU_PER_PX, METRIC_SUBSTITUTES, safeFace, cssFace,
   type ConvertResult, type OutDoc, type OutSlide, type OutElement, type OutShape, type OutImage,
@@ -368,6 +370,15 @@ export async function convertPptx(bytes: Uint8Array, opts: ConvertOptions = {}):
   const pres = xmlOf(parts, presPart)
   if (!pres) throw new Error('this file is not a PowerPoint package — it has no presentation part')
   const presRels = relsOf(parts, presPart)
+  // ppt/tableStyles.xml, read once and only if a table asks for it
+  let tableStylesXml: XElem | undefined | null = null
+  const tableStyles = (): XElem | undefined => {
+    if (tableStylesXml === null) {
+      const rel = relOfType(presRels, '/tableStyles')
+      try { tableStylesXml = rel ? xmlOf(parts, rel.target) : undefined } catch { tableStylesXml = undefined }
+    }
+    return tableStylesXml
+  }
 
   // 12192000×6858000 EMU / 9525 = 1280×720 EXACTLY — converted, never assumed
   // (4:3 decks are 9144000×6858000 → 960×720 through the same arithmetic).
@@ -554,30 +565,47 @@ export async function convertPptx(bytes: Uint8Array, opts: ConvertOptions = {}):
       }
 
       if (local === 'graphicFrame') {
-        // tables and charts are follow-up modules: a placeholder box marks the
-        // spot and the report says so HONESTLY — 'not yet', not 'unsupported'
+        // tables and charts become bento table/chart elements; anything that
+        // cannot be read keeps a placeholder box and the report says why
         const where = whereOf(el, n)
+        const id = `s${n}-${cNvPrIdOf(el)}`
+        const fr: GroupFrame = frame ?? resolveFrame(el, ctx)
+        const base = {
+          id, x: px(fr.x), y: px(fr.y), w: px(fr.w), h: px(fr.h),
+          rotation: r2(fr.rotation), opacity: 1,
+          ...(groupId ? { groupId } : {}),
+        }
         const graphic = kid(el, NS.a, 'graphic')
         const gd = graphic && kid(graphic, NS.a, 'graphicData')
-        if (gd && kid(gd, NS.a, 'tbl')) {
-          report.add('dropped', 'table-not-yet', where,
-            'tables are not imported yet (follow-up module) — a placeholder box marks the spot')
-        } else if (gd && kids(gd).some((c) => c.ns === NS.c && c.local === 'chart')) {
-          report.add('dropped', 'chart-not-yet', where,
-            'charts are not imported yet (follow-up module) — a placeholder box marks the spot')
+        const tbl = gd && kid(gd, NS.a, 'tbl')
+        const chartRef = gd && kids(gd).find((c) => c.ns === NS.c && c.local === 'chart')
+        if (tbl) {
+          const body = tableFrom(tbl, ctx, { rels: partRels, styles: tableStyles(), where })
+          if (body) { elements.push({ ...base, type: 'table', ...body }); return }
+          report.add('dropped', 'table-empty', where,
+            'the table has no grid columns or rows — a placeholder box marks the spot')
+        } else if (chartRef) {
+          const rid = rIdOf(chartRef)
+          const rel = rid ? partRels.get(rid) : undefined
+          let space: XElem | undefined
+          try { space = rel && !rel.mode ? xmlOf(parts, rel.target) : undefined } catch { space = undefined }
+          const got = space ? chartFrom(space, ctx, where) : undefined
+          if (got?.ok) {
+            elements.push({ ...base, type: 'chart', preset: got.preset, option: got.option })
+            return
+          }
+          if (got) report.add('dropped', got.code, where, got.detail)
+          else report.add('dropped', 'chart-missing', where,
+            'the chart part named by the graphicFrame is missing from the package — a placeholder box marks the spot')
         } else {
           report.add('dropped', 'graphic-dropped', where,
             `graphicFrame content (${gd ? attr(gd, 'uri') ?? 'unknown' : 'empty'}) has no importer — a placeholder box marks the spot`)
         }
-        const fr: GroupFrame = frame ?? resolveFrame(el, ctx)
         const box: OutShape = {
-          id: `s${n}-${cNvPrIdOf(el)}`, type: 'shape', shape: 'rect',
-          x: px(fr.x), y: px(fr.y), w: px(fr.w), h: px(fr.h),
-          rotation: r2(fr.rotation), opacity: 1,
+          ...base, type: 'shape', shape: 'rect',
           fill: 'transparent', stroke: '#9AA3AD', strokeWidth: 1, radius: 0,
           strokeStyle: 'dashed',
         }
-        if (groupId) box.groupId = groupId
         elements.push(box)
       }
     }

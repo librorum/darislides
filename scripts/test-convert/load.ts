@@ -45,6 +45,7 @@ const { convertPptx } = await import('../../convert/src/pptx.ts')
 const { allFixtures } = await import('./_fixtures.ts')
 const { parseDoc } = await import('../../slides/src/model.ts')
 const { validateDoc } = await import('../../slides/src/validate.ts')
+const { gateDoc } = await import('../../convert/src/deliver.ts')
 
 let failures = 0
 let checks = 0
@@ -61,6 +62,16 @@ for (const { name, build } of allFixtures()) {
   const parsed = parseDoc(JSON.stringify(result.doc))
   ok(parsed !== null, `${name}: parseDoc accepts the emitted document`)
   if (!parsed) continue
+  // the untrusted-input gate the CLI and /import page run: nothing the
+  // importer emits may be pruned by it (a pruned table/chart would load blank)
+  const gated = gateDoc(JSON.parse(JSON.stringify(result.doc)))
+  const canon = (v: unknown): string => JSON.stringify(v, (_k, x) =>
+    x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : 1))) : x)
+  const keep = (e: Record<string, unknown>) => ({ id: e.id, type: e.type, rows: e.rows, columns: e.columns, option: e.option, header: e.header })
+  ok(gated.dropped.length === 0 &&
+    canon(gated.doc.slides.map((s) => s.elements.map((e) => keep(e as never)))) ===
+      canon(result.doc.slides.map((s) => s.elements.map((e) => keep(e as never)))),
+    `${name}: gateDoc keeps every emitted element intact (dropped ${gated.dropped.length}${gated.dropped.length ? `: ${JSON.stringify(gated.dropped.slice(0, 3))}` : ''})`)
   const v = validateDoc(parsed, { measure: false })
   const errors = v.findings.filter((f) => f.severity === 'error')
   ok(errors.length === 0,

@@ -351,11 +351,11 @@ export function fxConnectors(): Promise<Uint8Array> {
   return buildPptx({ chain: false, slides: [{ xml }] })
 }
 
-/** 8 · structure: a table and a chart graphicFrame (placeholder + honest
- *  "not yet"), speaker notes (sldImg/sldNum placeholders skipped), a hidden
+/** 8 · structure: an EMPTY a:tbl and a chart reference whose part does not
+ *  exist (both keep the dashed placeholder box, reported), speaker notes (sldImg/sldNum placeholders skipped), a hidden
  *  second slide carrying an mc:AlternateContent whose Fallback must be taken
  *  exactly once, and NO transition anywhere (emitted 'none', never 'fade').
- *  Expected report: table-not-yet + chart-not-yet. */
+ *  Expected report: table-empty + chart-missing. */
 export function fxStructure(): Promise<Uint8Array> {
   const gframe = (id: number, name: string, y: number, data: string): string =>
     `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="${name}"/>` +
@@ -390,6 +390,122 @@ export function fxStructure(): Promise<Uint8Array> {
     '</mc:AlternateContent>',
     'show="0"')
   return buildPptx({ chain: false, slides: [{ xml: slide1, notes }, { xml: slide2 }] })
+}
+
+/** A graphicFrame at off (914400, 914400) ext (3657600, 1371600) → 96, 96,
+ *  384, 144 px, holding `data` inside a:graphicData. */
+const graphicFrame = (id: number, name: string, uri: string, data: string, y = 914400): string =>
+  `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="${name}"/>` +
+  '<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>' +
+  `<p:xfrm><a:off x="914400" y="${y}"/><a:ext cx="3657600" cy="1371600"/></p:xfrm>` +
+  `<a:graphic><a:graphicData uri="${uri}">${data}</a:graphicData></a:graphic></p:graphicFrame>`
+
+const TABLE_URI = 'http://schemas.openxmlformats.org/drawingml/2006/table'
+const CHART_URI = 'http://schemas.openxmlformats.org/drawingml/2006/chart'
+const NSC = 'http://schemas.openxmlformats.org/drawingml/2006/chart'
+
+/** 10 · table: grid 914400·914400·1828800 EMU → column weights 96·96·192;
+ *  firstRow + bandRow under the BUILT-IN default style GUID (the package has
+ *  no tableStyles.xml, so "Medium Style 2 – Accent 1" comes from table.ts):
+ *  header fill accent1 #4472C4, header ink lt1, body ink dk1, band1H =
+ *  accent1 tint 40%, wholeTbl = accent1 tint 20%, inner border lt1 12700 EMU.
+ *  Linear-light tint (theme.ts): 40% → #CDD4EA, 20% → #E8EBF5.
+ *  Row 1 opens with a gridSpan=2 cell whose hMerge continuation carries the
+ *  text "ghost" (must NOT import); its third cell has its own red fill, green
+ *  bold-less ink, right alignment and an https link with an & in it. Row 2
+ *  holds a javascript: link, which must not survive as an anchor.
+ *  Every tcPr: marL 50800 → 5.33px, marT 25400 → 2.67px, anchor ctr.
+ *  Expected report: table-merged-cells + table-link-dropped. */
+export function fxTable(): Promise<Uint8Array> {
+  const pr = '<a:tcPr marL="50800" marR="50800" marT="25400" marB="25400" anchor="ctr">'
+  const run = (text: string, extra = '', rPrKids = ''): string =>
+    `<a:r><a:rPr lang="en-US" sz="1400"${extra}>${rPrKids}</a:rPr><a:t>${text}</a:t></a:r>`
+  const tc = (body: string, attrs = '', fill = '', pPr = ''): string =>
+    `<a:tc${attrs}><a:txBody><a:bodyPr/><a:lstStyle/><a:p>${pPr}${body}</a:p></a:txBody>${pr}${fill}</a:tcPr></a:tc>`
+  const tbl =
+    '<a:tbl><a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId></a:tblPr>' +
+    '<a:tblGrid><a:gridCol w="914400"/><a:gridCol w="914400"/><a:gridCol w="1828800"/></a:tblGrid>' +
+    `<a:tr h="457200">${tc(run('Name'))}${tc(run('Q1'))}${tc(run('Note'))}</a:tr>` +
+    `<a:tr h="457200">${tc(run('Merged', ' b="1"'), ' gridSpan="2"')}${tc(run('ghost'), ' hMerge="1"')}` +
+    tc(run('Red', '', '<a:solidFill><a:srgbClr val="00FF00"/></a:solidFill><a:hlinkClick r:id="rIdW"/>'), '',
+      '<a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>', '<a:pPr algn="r"/>') + '</a:tr>' +
+    `<a:tr h="457200">${tc(run('Alpha'))}${tc(run('1'))}` +
+    `${tc(run('Bad link', '', '<a:hlinkClick r:id="rIdJ"/>'))}</a:tr>` +
+    '</a:tbl>'
+  return buildPptx({
+    slides: [{
+      xml: slide(graphicFrame(8, 'Table 1', TABLE_URI, tbl)),
+      rels:
+        `<Relationship Id="rIdW" Type="${REL}/hyperlink" Target="https://example.com/a?b=1&amp;c=2" TargetMode="External"/>` +
+        `<Relationship Id="rIdJ" Type="${REL}/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>`,
+    }],
+  })
+}
+
+const chartSpace = (chart: string): string =>
+  `<?xml version="1.0" encoding="UTF-8"?><c:chartSpace xmlns:c="${NSC}" xmlns:a="${NSA}" xmlns:r="${NSR}">` +
+  `<c:chart>${chart}</c:chart></c:chartSpace>`
+const strCache = (vals: string[]): string =>
+  `<c:strRef><c:f>Sheet1!A1</c:f><c:strCache><c:ptCount val="${vals.length}"/>` +
+  vals.map((v, i) => `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>`).join('') + '</c:strCache></c:strRef>'
+/** numCache with `count` slots; `pts` maps idx → value (a missing idx is a blank) */
+const numCache = (count: number, pts: Record<number, number>): string =>
+  `<c:numRef><c:f>Sheet1!B1</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${count}"/>` +
+  Object.entries(pts).map(([i, v]) => `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>`).join('') + '</c:numCache></c:numRef>'
+
+/** 11 · charts: three graphicFrames on one slide.
+ *  - chart1 (bar): a title (charts-lite draws none → dropped), legend at the
+ *    bottom, two series over categories Q1..Q3 — "North" 10/20/30 with its own
+ *    #112233 fill, "South" with NO spPr (→ accent2 #FBAE40, series index 1)
+ *    and a BLANK idx 1 (ptCount 3, points 0 and 2 only → [5, 0, 15], reported);
+ *    value axis scaling min 0 max 50.
+ *  - chart2 (pie): varyColors, slices A/B/C = 50/30/20, dPt idx 1 recoloured
+ *    accent4 (#FF0000) → colours [accent1 #4472C4, #FF0000, accent3 #808080];
+ *    dLbls showCatName + showPercent → formatter "{b}: {d}%".
+ *  - chart3: a c:bar3DChart, which charts-lite cannot draw → placeholder box.
+ *  Expected report: chart-title-dropped + chart-blanks-zeroed + chart-unsupported. */
+export function fxCharts(): Promise<Uint8Array> {
+  const cats = `<c:cat>${strCache(['Q1', 'Q2', 'Q3'])}</c:cat>`
+  const bar = chartSpace(
+    '<c:title><c:tx><c:rich><a:bodyPr/><a:p><a:r><a:t>Sales</a:t></a:r></a:p></c:rich></c:tx></c:title>' +
+    '<c:autoTitleDeleted val="0"/><c:plotArea>' +
+    '<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>' +
+    `<c:ser><c:idx val="0"/><c:order val="0"/><c:tx>${strCache(['North'])}</c:tx>` +
+    '<c:spPr><a:solidFill><a:srgbClr val="112233"/></a:solidFill></c:spPr>' +
+    `${cats}<c:val>${numCache(3, { 0: 10, 1: 20, 2: 30 })}</c:val></c:ser>` +
+    `<c:ser><c:idx val="1"/><c:order val="1"/><c:tx>${strCache(['South'])}</c:tx>` +
+    `${cats}<c:val>${numCache(3, { 0: 5, 2: 15 })}</c:val></c:ser>` +
+    '<c:axId val="111"/><c:axId val="222"/></c:barChart>' +
+    '<c:catAx><c:axId val="111"/><c:crossAx val="222"/></c:catAx>' +
+    '<c:valAx><c:axId val="222"/><c:scaling><c:orientation val="minMax"/><c:max val="50"/><c:min val="0"/></c:scaling>' +
+    '<c:crossAx val="111"/></c:valAx>' +
+    '</c:plotArea><c:legend><c:legendPos val="b"/></c:legend>')
+  const pie = chartSpace(
+    '<c:autoTitleDeleted val="1"/><c:plotArea><c:pieChart><c:varyColors val="1"/>' +
+    `<c:ser><c:idx val="0"/><c:order val="0"/><c:tx>${strCache(['Share'])}</c:tx>` +
+    '<c:dPt><c:idx val="1"/><c:bubble3D val="0"/><c:spPr><a:solidFill><a:schemeClr val="accent4"/></a:solidFill></c:spPr></c:dPt>' +
+    '<c:dLbls><c:showLegendKey val="0"/><c:showVal val="0"/><c:showCatName val="1"/><c:showSerName val="0"/>' +
+    '<c:showPercent val="1"/></c:dLbls>' +
+    `<c:cat>${strCache(['A', 'B', 'C'])}</c:cat><c:val>${numCache(3, { 0: 50, 1: 30, 2: 20 })}</c:val></c:ser>` +
+    '<c:firstSliceAng val="0"/></c:pieChart></c:plotArea>')
+  const bar3d = chartSpace(
+    '<c:plotArea><c:bar3DChart><c:barDir val="col"/>' +
+    `<c:ser><c:idx val="0"/>${cats}<c:val>${numCache(3, { 0: 1, 1: 2, 2: 3 })}</c:val></c:ser>` +
+    '</c:bar3DChart></c:plotArea>')
+  const ref = (rid: string): string => `<c:chart xmlns:c="${NSC}" r:id="${rid}"/>`
+  return buildPptx({
+    slides: [{
+      xml: slide(
+        graphicFrame(4, 'Chart Bar', CHART_URI, ref('rIdC1')) +
+        graphicFrame(5, 'Chart Pie', CHART_URI, ref('rIdC2'), 2743200) +
+        graphicFrame(6, 'Chart 3D', CHART_URI, ref('rIdC3'), 4572000)),
+      rels:
+        `<Relationship Id="rIdC1" Type="${REL}/chart" Target="../charts/chart1.xml"/>` +
+        `<Relationship Id="rIdC2" Type="${REL}/chart" Target="../charts/chart2.xml"/>` +
+        `<Relationship Id="rIdC3" Type="${REL}/chart" Target="../charts/chart3.xml"/>`,
+    }],
+    media: { 'ppt/charts/chart1.xml': bar, 'ppt/charts/chart2.xml': pie, 'ppt/charts/chart3.xml': bar3d },
+  })
 }
 
 /** Every fixture, for the loadability gate. */
@@ -439,5 +555,7 @@ export function allFixtures(): Array<{ name: string; build: () => Promise<Uint8A
     { name: 'svg', build: fxSvg },
     { name: 'connectors', build: fxConnectors },
     { name: 'structure', build: fxStructure },
+    { name: 'table', build: fxTable },
+    { name: 'charts', build: fxCharts },
   ]
 }

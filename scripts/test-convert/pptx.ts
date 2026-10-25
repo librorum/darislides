@@ -28,13 +28,19 @@
 //   • svg pair: exactly ONE asset, and it is the SVG bytes, not the raster.
 //   • connector: the dangling end (id 99) is asserted absent while the valid
 //     end on the SAME connector survives.
+//   • table: the hMerge continuation's text ("ghost") is absent, a javascript:
+//     link never becomes an anchor, and band1H lands on body row 0 — the
+//     renderer's zebra parity (row 1) is asserted NOT used.
+//   • chart: a blank point is 0 (reported), never shifted or dropped; a 3D
+//     chart keeps the placeholder box instead of a half-read chart.
 
 import { Buffer } from 'node:buffer'
 import { convertPptx } from '../../convert/src/pptx.ts'
 import type { ConvertResult } from '../../convert/src/types.ts'
-import type { OutShape, OutText, OutImage } from '../../convert/src/types.ts'
+import type { OutShape, OutText, OutImage, OutTable, OutChart } from '../../convert/src/types.ts'
 import {
   fxMinimal, fxThemed, fxPlaceholder, fxGroup, fxBullets, fxSvg, fxConnectors, fxStructure, fxChrome,
+  fxTable, fxCharts,
   SVG_BYTES,
 } from './_fixtures.ts'
 
@@ -225,10 +231,11 @@ const byId = (r: ConvertResult, slide: number, id: string) =>
   const table = byId(r, 0, 's1-6') as OutShape
   ok(table !== undefined && table.shape === 'rect' && table.strokeStyle === 'dashed'
     && table.fill === 'transparent',
-    'structure: a table graphicFrame leaves a dashed placeholder box')
+    'structure: an EMPTY a:tbl (no grid, no rows) leaves a dashed placeholder box')
   ok(table.x === 96 && table.y === 96 && table.w === 480 && table.h === 192,
     'structure: the placeholder sits in the graphicFrame’s own p:xfrm frame')
-  ok(byId(r, 0, 's1-7') !== undefined, 'structure: the chart graphicFrame leaves one too')
+  ok((byId(r, 0, 's1-7') as OutShape | undefined)?.strokeStyle === 'dashed',
+    'structure: the chart whose part is missing leaves one too (never a crash)')
 
   ok(d.slides[0].notes === 'Remember the demo',
     'structure: notes come from the body placeholder only (sldImg and sldNum skipped)')
@@ -241,7 +248,83 @@ const byId = (r: ConvertResult, slide: number, id: string) =>
     'structure: mc:AlternateContent resolves to its Fallback, imported ONCE')
   ok(!s2.some((e) => e.id === 's2-20'),
     'structure: NEGATIVE — the mc:Choice content (which a blind walk double-imports) is absent')
-  reportIs(r, ['table-not-yet', 'chart-not-yet'], 'structure')
+  reportIs(r, ['table-empty', 'chart-missing'], 'structure')
+}
+
+// --------------------------------------------------------------------- table
+{
+  const r = await convertPptx(await fxTable())
+  const els = r.doc.slides[0].elements
+  ok(els.length === 1 && els[0].type === 'table', 'table: the a:tbl graphicFrame becomes ONE table element')
+  const t = els[0] as OutTable
+  ok(t.id === 's1-8', 'table: id is s<slide>-<cNvPr id>')
+  // off 914400,914400 ext 3657600,1371600 → 96, 96, 384, 144
+  ok(t.x === 96 && t.y === 96 && t.w === 384 && t.h === 144, 'table: frame from the graphicFrame’s p:xfrm')
+  ok(t.columns.map((c) => c.w).join(',') === '96,96,192', 'table: gridCol w 914400·914400·1828800 EMU → weights 96·96·192')
+  ok(t.header === true, 'table: tblPr firstRow="1" → header')
+  ok(t.rows.length === 3 && t.rows.every((row) => row.cells.length === 3), 'table: 3 rows × 3 cells, merged cells keep their grid slot')
+  const st = t.style as Record<string, unknown>
+  ok(st.headerBg === '#4472C4' && st.headerColor === '#FFFFFF' && st.color === '#000000',
+    'table: built-in default style → header accent1 / lt1 ink, body dk1 ink')
+  // 12700 EMU / 9525 = 1.333 → 1.33
+  ok(st.borderColor === '#FFFFFF' && st.borderWidth === 1.33, 'table: style inner border lt1 at 12700 EMU = 1.33px')
+  ok(st.cellPadX === 5.33 && st.cellPadY === 2.67, 'table: tcPr marL 50800 / marT 25400 EMU → 5.33 / 2.67 px padding')
+  ok(st.fontSize === 18.67, 'table: run sz 1400 = 14pt = 18.67px table-wide')
+  ok(st.zebra === undefined, 'table: no zebra — band fills are baked per cell')
+  const [r0, r1, r2] = t.rows
+  ok(r0.cells.map((c) => c.html).join('|') === 'Name|Q1|Note' && r0.cells.every((c) => c.bg === undefined),
+    'table: header cells carry text and inherit style.headerBg')
+  // band1H = accent1 tint 40% (linear light) = #CDD4EA on body row 0
+  ok(r1.cells[0].html === 'Merged' && r1.cells[0].bold === true && r1.cells[0].bg === '#CDD4EA',
+    'table: gridSpan origin keeps its content, all-bold → bold, band1H fill #CDD4EA')
+  ok(r1.cells[1].html === '', 'table: the hMerge continuation is left empty')
+  ok(!t.rows.some((row) => row.cells.some((c) => c.html.includes('ghost'))),
+    'table: NEGATIVE — the continuation cell’s own text ("ghost") is absent')
+  ok(r1.cells[2].bg === '#FF0000' && r1.cells[2].color === '#00FF00' && r1.cells[2].align === 'right',
+    'table: own tcPr fill, run ink and algn="r" carried as cell overrides')
+  ok(r1.cells[2].html === '<a href="https://example.com/a?b=1&amp;c=2">Red</a>',
+    'table: an https hyperlink is carried as an escaped anchor')
+  // wholeTbl = accent1 tint 20% = #E8EBF5 on body row 1 (not banded)
+  ok(r2.cells.every((c) => c.bg === '#E8EBF5'), 'table: unbanded body row gets the wholeTbl fill #E8EBF5')
+  ok(r2.cells[0].bg !== '#CDD4EA', 'table: NEGATIVE — band1H is not painted on the zebra parity (body row 1)')
+  ok(r2.cells[2].html === 'Bad link' && !JSON.stringify(t).includes('javascript'),
+    'table: NEGATIVE — a javascript: link is dropped, its text stays')
+  reportIs(r, ['table-merged-cells', 'table-link-dropped'], 'table')
+}
+
+// -------------------------------------------------------------------- charts
+{
+  const r = await convertPptx(await fxCharts())
+  const els = r.doc.slides[0].elements
+  ok(els.map((e) => `${e.id}:${e.type}`).join(',') === 's1-4:chart,s1-5:chart,s1-6:shape',
+    'charts: bar and pie import as charts, in z-order; the 3D chart stays a shape')
+  const bar = els[0] as OutChart
+  const o = bar.option as any
+  ok(bar.preset === 'bar' && bar.x === 96 && bar.y === 96 && bar.w === 384 && bar.h === 144,
+    'charts: bar preset in the graphicFrame’s frame')
+  ok(JSON.stringify(o.xAxis) === '{"type":"category","data":["Q1","Q2","Q3"]}', 'charts: categories from c:cat strCache')
+  ok(o.series.length === 2 && o.series.every((s: any) => s.type === 'bar'), 'charts: two bar series')
+  ok(o.series[0].name === 'North' && JSON.stringify(o.series[0].data) === '[10,20,30]', 'charts: series 1 name + plain-number values')
+  ok(JSON.stringify(o.series[1].data) === '[5,0,15]', 'charts: the blank idx 1 becomes 0 in place')
+  ok(JSON.stringify(o.series[1].data) !== '[5,15]', 'charts: NEGATIVE — the blank is not dropped (which would shift Q3 onto Q2)')
+  ok(JSON.stringify(o.color) === '["#112233","#FBAE40"]', 'charts: own spPr colour, then accent2 for the 2nd series')
+  ok(o.yAxis.min === 0 && o.yAxis.max === 50, 'charts: valAx scaling min/max carried')
+  ok(JSON.stringify(o.legend) === '{"bottom":0}', 'charts: legendPos b → legend at the bottom')
+  ok(o.title === undefined, 'charts: no option.title (charts-lite draws none; reported)')
+
+  const pie = els[1] as OutChart
+  const p = pie.option as any
+  ok(pie.preset === 'pie' && pie.y === 288, 'charts: pie preset, frame y 2743200 EMU = 288px')
+  ok(JSON.stringify(p.series[0].data) === '[{"name":"A","value":50},{"name":"B","value":30},{"name":"C","value":20}]',
+    'charts: pie data as {name, value}')
+  ok(JSON.stringify(p.color) === '["#4472C4","#FF0000","#808080"]', 'charts: varyColors accents with the dPt override on slice 2')
+  ok(p.series[0].label?.formatter === '{b}: {d}%', 'charts: dLbls showCatName + showPercent → "{b}: {d}%"')
+  ok(p.legend === undefined, 'charts: no c:legend → no legend')
+
+  const box = els[2] as OutShape
+  ok(box.strokeStyle === 'dashed' && box.fill === 'transparent' && box.y === 480,
+    'charts: NEGATIVE — the 3D chart keeps the dashed placeholder, not a half-read chart')
+  reportIs(r, ['chart-title-dropped', 'chart-blanks-zeroed', 'chart-unsupported'], 'charts')
 }
 
 // -------------------------------------------------------------------- chrome

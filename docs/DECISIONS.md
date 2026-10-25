@@ -8498,3 +8498,32 @@ slide's own cNvPr ids. Title/subtitle/body placeholders get `role`, so
 no longer reported dropped. Without the option the output is byte-identical
 to before — an ordinary deck import keeps PRUNE. Guarded by the `chrome`
 block of `scripts/test-convert/pptx.ts`.
+
+## 2026-10-25 — PowerPoint tables and charts import as bento tables and charts
+
+The importer used to leave a dashed placeholder box for every
+`p:graphicFrame` (`table-not-yet` / `chart-not-yet`). `convert/src/table.ts`
+and `convert/src/chart.ts` now carry them; the frame, the `s<n>-<cNvPr id>`
+id and z-order stay the orchestrator's, and anything unreadable still falls
+back to the placeholder with a coded report (`table-empty`, `chart-missing`,
+`chart-data-missing`, `chart-unsupported`, `chart-too-large`).
+
+Tables: `gridCol w` → fractional `columns`, `firstRow` → `header`. The table
+style (from `ppt/tableStyles.xml`, or the built-in default GUID "Medium
+Style 2 – Accent 1", spelled out in table.ts because packages often carry no
+definition) gives header fill/ink, body ink and one border; region fills
+(wholeTbl, band1H) are BAKED into each body cell's `bg`, because bento has no
+body fill and its zebra stripes the opposite parity. Size and face flatten to
+the table's dominant run. Merged cells have no model field: content stays in
+the origin cell, continuation cells are empty (`table-merged-cells`). Cell
+html is text.ts's inline subset plus `<a href>` for http(s) links only.
+
+Charts: data comes from the part's CACHES only — the embedded workbook is
+never opened. bar/line/area/pie/doughnut/scatter map onto charts-lite's
+option shape (area = line + opaque areaStyle, doughnut = pie with an inner
+radius, mixed bar/line on two value axes = `yAxisIndex`); colours from series
+`spPr` (or the accent cycle) → `option.color`. What charts-lite cannot draw
+is reported, not faked: titles and data labels dropped, horizontal bars and
+stacking approximated, blank points become 0 (`chart-blanks-zeroed`), 3D and
+other chart types keep the placeholder. Guarded by the `table` / `charts`
+blocks of `scripts/test-convert/pptx.ts` and the gateDoc check in `load.ts`.
