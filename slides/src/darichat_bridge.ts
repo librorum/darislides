@@ -2,6 +2,8 @@ import type { Store } from './store'
 import type { SyncSession } from './sync/session'
 import type { LoadReport } from './compactload'
 import type { BentoDoc } from './model'
+import { rasterizeSlide } from './editor/exportimages'
+import { exportableSlides } from './exportimages'
 
 declare const __DARISLIDES_CONFIG__: { parent_origins: string[] }
 
@@ -12,6 +14,32 @@ export function darichatHostOrigin(): string | null {
     const parent_origin = new URL(document.referrer || window.origin).origin
     return __DARISLIDES_CONFIG__.parent_origins.includes(parent_origin) ? parent_origin : null
   } catch { return null }
+}
+
+// 다리챗 슬라이드 목록 미리보기 — 첫 장을 가로 480px JPEG 로 그려 부모에 돌려준다
+const thumbnail_width = 480
+
+async function thumbnailBlob(doc: BentoDoc): Promise<Blob> {
+  const slide = exportableSlides(doc)[0] ?? doc.slides[0]
+  if (!slide) throw new Error('slides_slide_not_found')
+  const bitmap = await createImageBitmap(await rasterizeSlide(doc, slide, 'jpeg', 1))
+  const canvas = document.createElement('canvas')
+  canvas.width = thumbnail_width
+  canvas.height = Math.round(thumbnail_width * bitmap.height / bitmap.width)
+  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  bitmap.close()
+  return await new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('encode'))), 'image/jpeg', 0.8)
+  })
+}
+
+export async function sendThumbnail(doc: BentoDoc, request_id: string,
+  send: (data: Record<string, unknown>) => void): Promise<void> {
+  try {
+    send({ type: 'thumbnail', request_id, blob: await thumbnailBlob(doc) })
+  } catch (error) {
+    send({ type: 'error', request_id, message: error instanceof Error ? error.message : 'slides_thumbnail_failed' })
+  }
 }
 
 // This bridge is dormant in standalone files. Credentials stay in the parent.
@@ -39,6 +67,10 @@ export function connectDarichat(store: Store, session: SyncSession,
     try {
       if (type === 'read') {
         sendSlides('document', { request_id, doc: snapshotSlides() })
+        return
+      }
+      if (type === 'thumbnail') {
+        void sendThumbnail(snapshotSlides(), request_id, (data) => sendSlides(data.type as string, data))
         return
       }
       if (type !== 'load') return

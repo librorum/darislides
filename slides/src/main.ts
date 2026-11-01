@@ -4,7 +4,7 @@
 // mutation — the captured copy is what gets re-serialized on save.
 
 import './styles.css'
-import { connectDarichat, darichatHostOrigin } from './darichat_bridge'
+import { connectDarichat, darichatHostOrigin, sendThumbnail } from './darichat_bridge'
 import { registerDarislidesLocale } from './darislides_locale'
 import { anim } from './anim'
 import { configureApp, appConfig } from '../../kernel/src/app.ts'
@@ -282,6 +282,7 @@ function playerMode(doc: BentoDoc, editable = false) {
       || event.data?.channel !== 'darislides') return
     const { type } = event.data
     if (type === 'pick_mode') return setPick(event.data.on === true)
+    if (type === 'thumbnail') return void sendThumbnail(doc, event.data.request_id, sendHost)
     if (type !== 'next' && type !== 'prev' && type !== 'goto') return
     if (type === 'goto') {
       const index = doc.slides.findIndex((slide) => slide.id === event.data.slide_id)
