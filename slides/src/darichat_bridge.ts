@@ -3,7 +3,9 @@ import type { SyncSession } from './sync/session'
 import type { LoadReport } from './compactload'
 import type { BentoDoc } from './model'
 import { rasterizeSlide } from './editor/exportimages'
+import { buildPrintBox } from './editor/printbox'
 import { exportableSlides } from './exportimages'
+import { injectFonts } from './fonts'
 
 declare const __DARISLIDES_CONFIG__: { parent_origins: string[] }
 
@@ -40,6 +42,22 @@ export async function sendThumbnail(doc: BentoDoc, request_id: string,
   } catch (error) {
     send({ type: 'error', request_id, message: error instanceof Error ? error.message : 'slides_thumbnail_failed' })
   }
+}
+
+// 다리챗 PDF 내보내기 — 숨은 iframe 에서 편집기·재생 없이 인쇄할 쪽만 그린다. 글꼴·그림이 준비되면 ready 를 보내고 인쇄는 부모가 부른다.
+// 평소 #bento-print 는 display:none 이라 글꼴을 받지 않으니, 인쇄 전에 받도록 보이게 둔다(iframe 이 0 크기라 눈에 안 띈다).
+export async function printMode(doc: BentoDoc): Promise<void> {
+  document.title = doc.title
+  // 로더는 이 값으로 앱이 떴는지 본다. 없으면 부팅을 되풀이해 쪽이 겹친다
+  ;(window as any).bento = { format: doc.format, doc, readonly: true }
+  if (doc.fonts?.length) injectFonts(doc)
+  const box = buildPrintBox(doc)
+  box.style.display = 'block'
+  document.body.appendChild(box)
+  document.getElementById('bento-splash')?.remove()
+  await Promise.all([document.fonts.ready,
+    ...Array.from(box.querySelectorAll('img'), (image) => image.decode().catch(() => null))])
+  window.parent.postMessage({ channel: 'darislides', type: 'ready' }, darichatHostOrigin()!)
 }
 
 // This bridge is dormant in standalone files. Credentials stay in the parent.
