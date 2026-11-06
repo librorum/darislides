@@ -9,15 +9,14 @@ import {
   MEDIA_EMBED_BUDGET,
   applyChartPalette, applyLayout, builtinLayouts, defaultChart, defaultCode, defaultImage, defaultMedia, defaultShape, defaultTable, defaultText,
   instantiateLayout, isLightBg, layoutElementIds, newDocId, parseDoc, readableInk, syncLinkedChart, uid,
-  paginates,
+  paginates, inLinearFlow,
   type ChartElement, type ShapeKind, type Slide, type SlideElement, type TableElement } from '../model'
 import { THEME_CHOICES, setTheme, themeChoice } from '../../../kernel/src/theme.ts'
 import type { InPlaceOutcome } from '../update'
 import { APP_VERSION, applyUpdate, applyUpdateInPlace, autoCheckEnabled, canUpdateInPlace, checkForUpdates, compareVersions, offlineEnabled, sandboxed, setAutoCheck, setOffline } from '../update'
 import { CHART_PRESETS } from '../charts'
-import { renderThumbnail } from '../render'
+import { renderSlide, renderThumbnail } from '../render'
 import { openExportImagesDialog } from './exportimages'
-import { buildPrintBox } from './printbox'
 import { paletteSignature, resolveThemeRefs } from '../palette'
 import { SlideCanvas } from './canvas'
 import { PropsPanel } from './panels'
@@ -2205,7 +2204,24 @@ export class Editor {
   exportPdf() {
     this.canvas.commitTextEdit()
     document.getElementById('bento-print')?.remove()
-    const box = buildPrintBox(this.store.doc)
+    const box = div('')
+    box.id = 'bento-print'
+    // page geometry follows the deck's aspect (width normalised to 1600)
+    const pageH = Math.round((1600 * this.store.doc.size.height) / this.store.doc.size.width)
+    const pageCss = document.createElement('style')
+    pageCss.textContent = `@page { size: 1600px ${pageH}px; margin: 0; } #bento-print .bp-page { height: ${pageH}px; }`
+    box.appendChild(pageCss)
+    for (const slide of this.store.doc.slides) {
+      if (!inLinearFlow(slide)) continue
+      const page = div('bp-page')
+      const surface = renderSlide(slide, this.store.doc, { svgAsImage: true, hidePlaceholders: true })
+      // normalise to the print page size regardless of doc size
+      const s = 1600 / this.store.doc.size.width
+      surface.style.transformOrigin = '0 0'
+      if (s !== 1) surface.style.transform = `scale(${s})`
+      page.appendChild(surface)
+      box.appendChild(page)
+    }
     document.body.appendChild(box)
     const cleanup = () => {
       box.remove()

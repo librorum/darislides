@@ -3,7 +3,6 @@ import type { SyncSession } from './sync/session'
 import type { LoadReport } from './compactload'
 import type { BentoDoc } from './model'
 import { rasterizeSlide } from './editor/exportimages'
-import { buildPrintBox } from './editor/printbox'
 import { exportableSlides } from './exportimages'
 import { injectFonts } from './fonts'
 
@@ -44,20 +43,29 @@ export async function sendThumbnail(doc: BentoDoc, request_id: string,
   }
 }
 
-// 다리챗 PDF 내보내기 — 숨은 iframe 에서 편집기·재생 없이 인쇄할 쪽만 그린다. 글꼴·그림이 준비되면 ready 를 보내고 인쇄는 부모가 부른다.
-// 평소 #bento-print 는 display:none 이라 글꼴을 받지 않으니, 인쇄 전에 받도록 보이게 둔다(iframe 이 0 크기라 눈에 안 띈다).
-export async function printMode(doc: BentoDoc): Promise<void> {
+// 다리챗 PDF 내보내기 — 숨은 iframe 에서 편집기·재생 없이, 부모가 달라는 쪽을 JPEG 로 그려 돌려준다
+const page_image_scale = 2
+
+export function pagesMode(doc: BentoDoc): void {
   document.title = doc.title
-  // 로더는 이 값으로 앱이 떴는지 본다. 없으면 부팅을 되풀이해 쪽이 겹친다
+  // 로더는 이 값으로 앱이 떴는지 본다. 없으면 부팅을 되풀이한다
   ;(window as any).bento = { format: doc.format, doc, readonly: true }
   if (doc.fonts?.length) injectFonts(doc)
-  const box = buildPrintBox(doc)
-  box.style.display = 'block'
-  document.body.appendChild(box)
   document.getElementById('bento-splash')?.remove()
-  await Promise.all([document.fonts.ready,
-    ...Array.from(box.querySelectorAll('img'), (image) => image.decode().catch(() => null))])
-  window.parent.postMessage({ channel: 'darislides', type: 'ready' }, darichatHostOrigin()!)
+  const parent_origin = darichatHostOrigin()!
+  const pages = exportableSlides(doc)
+  const send = (data: Record<string, unknown>) => window.parent.postMessage({ channel: 'darislides', ...data }, parent_origin)
+  window.addEventListener('message', async (event: MessageEvent) => {
+    if (event.source !== window.parent || event.origin !== parent_origin
+      || event.data?.channel !== 'darislides' || event.data.type !== 'page_image') return
+    const { request_id, index } = event.data
+    try {
+      send({ type: 'page_image', request_id, blob: await rasterizeSlide(doc, pages[index], 'jpeg', page_image_scale) })
+    } catch (error) {
+      send({ type: 'error', request_id, message: error instanceof Error ? error.message : 'slides_page_image_failed' })
+    }
+  })
+  send({ type: 'ready', total: pages.length, width: doc.size.width, height: doc.size.height, scale: page_image_scale })
 }
 
 // This bridge is dormant in standalone files. Credentials stay in the parent.

@@ -4,7 +4,7 @@
 // mutation — the captured copy is what gets re-serialized on save.
 
 import './styles.css'
-import { connectDarichat, darichatHostOrigin, printMode, sendThumbnail } from './darichat_bridge'
+import { connectDarichat, darichatHostOrigin, pagesMode, sendThumbnail } from './darichat_bridge'
 import { registerDarislidesLocale } from './darislides_locale'
 import { anim } from './anim'
 import { configureApp, appConfig } from '../../kernel/src/app.ts'
@@ -157,7 +157,7 @@ function bootWith(doc: BentoDoc, docIsFresh = false) {
   // re-derives through the editor's `doc` hook; nothing else would visit a
   // player file at all.
   resolveThemeRefs(doc)
-  if (document.documentElement.dataset.darislidesMode === 'print' && darichatHostOrigin()) void printMode(doc)
+  if (document.documentElement.dataset.darislidesMode === 'pages' && darichatHostOrigin()) pagesMode(doc)
   else if (doc.collab?.role === 'audience') audienceMode(doc)
   else if (doc.readonly) playerMode(doc)
   else if (document.documentElement.dataset.darislidesMode === 'edit'
