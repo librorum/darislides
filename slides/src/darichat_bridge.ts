@@ -52,7 +52,7 @@ export async function printMode(doc: BentoDoc): Promise<void> {
   const bento: Record<string, unknown> = { format: doc.format, doc, readonly: true }
   ;(window as any).bento = bento
   if (doc.fonts?.length) injectFonts(doc)
-  const box = buildPrintBox(doc)
+  const box = buildPrintBox(doc, true)
   box.style.display = 'block'
   document.body.appendChild(box)
   document.getElementById('bento-splash')?.remove()

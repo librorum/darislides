@@ -9,7 +9,7 @@ import { inLinearFlow, type BentoDoc } from '../model'
  * flow stays off the paper: a state is reachable only through interaction, and
  * a hidden slide is material the audience was not meant to be handed.
  */
-export function buildPrintBox(doc: BentoDoc): HTMLElement {
+export function buildPrintBox(doc: BentoDoc, inlineSvg = false): HTMLElement {
   const box = document.createElement('div')
   box.id = 'bento-print'
   const pageH = Math.round((1600 * doc.size.height) / doc.size.width)
@@ -21,7 +21,7 @@ export function buildPrintBox(doc: BentoDoc): HTMLElement {
     if (!inLinearFlow(slide)) continue
     const page = document.createElement('div')
     page.className = 'bp-page'
-    const surface = renderSlide(slide, doc, { svgAsImage: true, hidePlaceholders: true })
+    const surface = renderSlide(slide, doc, { svgAsImage: true, inlineSvg, hidePlaceholders: true })
     surface.style.transformOrigin = '0 0'
     if (scale !== 1) surface.style.transform = `scale(${scale})`
     page.appendChild(surface)

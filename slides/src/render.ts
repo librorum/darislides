@@ -18,6 +18,8 @@ const SVG_NS = 'http://www.w3.org/2000/svg'
 export interface RenderOpts {
   /** render svg elements as <img> (cheap DOM) — used by thumbnails */
   svgAsImage?: boolean
+  /** Keep svg elements as live nodes under svgAsImage: their text stays selectable and uses the page's fonts (darichat PDF). */
+  inlineSvg?: boolean
   /** hide empty placeholder text entirely — present mode and print */
   hidePlaceholders?: boolean
   /** media (video/audio) accepts pointer input — PRESENT only. On the editor
@@ -1222,7 +1224,7 @@ export function renderElement(el: SlideElement, doc: BentoDoc, opts: RenderOpts 
     }
     case 'svg': {
       const markup = svgMarkup(el, doc)
-      if (opts.svgAsImage) {
+      if (opts.svgAsImage && !opts.inlineSvg) {
         // thumbnails: one <img> instead of thousands of svg nodes
         const img = document.createElement('img')
         img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(markup)
