@@ -6,6 +6,8 @@
     "https://www.darichat.com",
     "https://chat.darichat.com",
     "app://darichat",
+    "https://localhost",
+    "darichat://localhost",
     "http://localhost:9000",
     "http://localhost:9001",
     "http://localhost:3890",
