@@ -7,6 +7,7 @@
     "dev": "pnpm --dir slides dev --port 5174",
     "build": "pnpm --dir slides build",
     "build:single": "pnpm --dir slides build:single",
+    "build:player": "pnpm --dir slides build:player",
     "sync:dev": "wrangler dev --config wrangler.jsonc --port 8892",
     "sync:check": "wrangler deploy --config wrangler.jsonc --dry-run",
     "test": "node --test test/*.test.mjs"

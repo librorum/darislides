@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:player": "tsc -b && SINGLEFILE=1 DARISLIDES_PLAYER=1 vite build --outDir dist-player && mv dist-player/index.html dist-player/darislides_player.html && node ../scripts/postbuild-compress.mjs dist-player/darislides_player.html",
     "build:single": "tsc -b && SINGLEFILE=1 vite build --outDir dist-single && mv dist-single/index.html dist-single/Bento_Slides.bento.html && node ../scripts/postbuild-compress.mjs dist-single/Bento_Slides.bento.html",
     "preview": "vite preview"
   },

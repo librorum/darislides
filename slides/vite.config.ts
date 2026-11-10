@@ -22,7 +22,14 @@ export default defineConfig({
   // The app version baked into every shipped shell — what update checks
   // compare against the release manifest. Single source: package.json.
   define: { __APP_VERSION__: JSON.stringify(config.version), __DARISLIDES_CONFIG__: JSON.stringify(config) },
-  plugins: [...(process.env.SINGLEFILE ? [viteSingleFile()] : [])],
+  plugins: [
+    // DARISLIDES_PLAYER=1 → 다리챗 보기 전용 셸. 같은 index.html 에서 시작점만 player_main.ts 로 바꾼다
+    ...(process.env.DARISLIDES_PLAYER ? [{
+      name: 'darislides-player-entry',
+      transformIndexHtml: { order: 'pre' as const, handler: (html: string) => html.replace('/src/main.ts', '/src/player_main.ts') },
+    }] : []),
+    ...(process.env.SINGLEFILE ? [viteSingleFile()] : []),
+  ],
   // Dev-only: allow serving ../kernel (shared TS-source kernel) — without a
   // workspace root, vite's fs allow-list stops at the app dir. Build output
   // is unaffected (rollup has no such restriction).

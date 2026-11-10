@@ -5,6 +5,7 @@
 node_modules
 dist/
 dist-single/
+dist-player/
 
 # local test decks — never committed (may contain confidential content)
 testing/
